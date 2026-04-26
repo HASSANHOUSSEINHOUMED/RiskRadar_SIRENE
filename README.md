@@ -116,8 +116,8 @@ riskradar-sirene/
 
 ### 1. Cloner le répertoire
 ```bash
-git clone https://github.com/HASSANHOUSSEINHOUMED/riskradar-sirene.git
-cd riskradar-sirene
+git clone https://github.com/HASSANHOUSSEINHOUMED/RiskRadar_SIRENE.git
+cd RiskRadar_SIRENE
 ```
 
 ### 2. Créer l'environnement virtuel

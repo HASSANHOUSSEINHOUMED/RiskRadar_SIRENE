@@ -1,0 +1,16 @@
+# Données — trop volumineuses pour GitHub
+data/
+
+# Environnement virtuel
+prediction_defaillance_env/
+
+# Fichiers systèmes
+__pycache__/
+*.pyc
+*.pyo
+.env
+*.log
+
+# Fichiers temporaires
+*.tmp
+*.temp

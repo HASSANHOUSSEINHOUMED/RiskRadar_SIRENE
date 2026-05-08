@@ -16,6 +16,7 @@ import time
 import random
 import math
 from datetime import datetime
+from huggingface_hub import hf_hub_download
 
 # -------------------------------------------------------
 # CONFIGURATION
@@ -89,6 +90,10 @@ st.markdown("""
 DATE_REFERENCE = pd.Timestamp(datetime.now().strftime("%Y-%m-%d"))
 CHEMIN_SILVER = "data/silver/sirene_entreprises_silver_latest.parquet"
 CHEMIN_PERFORMANCES = "data/modeles/performances.json"
+DOSSIER_MODELES = "data/modeles"
+
+# Identifiant du dataset Hugging Face
+HF_REPO_ID = "HassanHH2910/riskradar-sirene"
 
 ORDRE_TRANCHES = {
     "NN": 0, "00": 1, "01": 2, "02": 3, "03": 4,
@@ -113,7 +118,6 @@ LABEL_CATEGORIE = {
     "GE": "Grande entreprise"
 }
 
-# Dictionnaire étendu des codes NAF vers noms lisibles
 NAF_NOMS = {
     "68.20B": "Location immobilière",
     "68.20A": "Location de logements",
@@ -156,14 +160,11 @@ NAF_NOMS = {
 
 
 def naf_lisible(code):
-    # Conversion du code NAF en libellé lisible
-    # Si le code n'est pas dans le dictionnaire, on retourne le code brut
     code_str = str(code).strip()
     return NAF_NOMS.get(code_str, code_str)
 
 
 def formater_kpi(n):
-    # Formatage compact pour les grands nombres dans les KPIs
     if n >= 1_000_000:
         return f"{n/1_000_000:.1f}M"
     elif n >= 1_000:
@@ -172,7 +173,6 @@ def formater_kpi(n):
 
 
 def formater_nombre(n):
-    # Formatage avec suffixe pour les graphiques
     if n >= 1_000_000:
         return f"{n/1_000_000:.1f}M"
     elif n >= 1_000:
@@ -181,7 +181,6 @@ def formater_nombre(n):
 
 
 def formater_date(date_str):
-    # Conversion de 2026-04-26 vers Avril 2026
     try:
         date_obj = datetime.strptime(date_str, "%Y-%m-%d")
         mois_fr = [
@@ -205,6 +204,36 @@ def etoiles(auc_roc):
 
 
 # -------------------------------------------------------
+# TÉLÉCHARGEMENT DEPUIS HUGGING FACE
+# Télécharge les fichiers uniquement s'ils ne sont pas déjà présents
+# -------------------------------------------------------
+def telecharger_depuis_hf():
+    os.makedirs("data/silver", exist_ok=True)
+    os.makedirs(DOSSIER_MODELES, exist_ok=True)
+
+    fichiers = [
+        ("sirene_entreprises_silver_latest.parquet", CHEMIN_SILVER),
+        ("performances.json", CHEMIN_PERFORMANCES),
+        ("modele_xgboost.pkl", os.path.join(DOSSIER_MODELES, "modele_xgboost.pkl")),
+        ("modele_random_forest.pkl", os.path.join(DOSSIER_MODELES, "modele_random_forest.pkl")),
+        ("modele_logistic_regression.pkl", os.path.join(DOSSIER_MODELES, "modele_logistic_regression.pkl")),
+    ]
+
+    for nom_hf, chemin_local in fichiers:
+        if not os.path.exists(chemin_local):
+            hf_hub_download(
+                repo_id=HF_REPO_ID,
+                filename=nom_hf,
+                repo_type="dataset",
+                local_dir=os.path.dirname(chemin_local),
+                local_dir_use_symlinks=False
+            )
+
+
+# Téléchargement au démarrage — ne fait rien si les fichiers existent déjà
+telecharger_depuis_hf()
+
+# -------------------------------------------------------
 # CHARGEMENT DES DONNÉES
 # -------------------------------------------------------
 @st.cache_data
@@ -225,19 +254,13 @@ def charger_statistiques_globales():
     ]
     df = pq.read_table(CHEMIN_SILVER, columns=colonnes).to_pandas()
     nb = pq.read_metadata(CHEMIN_SILVER).num_rows
-
     nb_actives = int((df["etatAdministratifUniteLegale"] == "A").sum())
     nb_cessees = int((df["etatAdministratifUniteLegale"] == "C").sum())
     pct_actives = round(nb_actives / nb * 100, 1)
     pct_cessees = round(nb_cessees / nb * 100, 1)
-
     top_secteurs = df["activitePrincipaleUniteLegale"].dropna().value_counts().head(4)
-
-    # Répartition par catégorie incluant les entreprises non classées
-    # La colonne categorieEntreprise n'est renseignée que pour 35.8% des entreprises dans la source INSEE
     repartition_cat = df["categorieEntreprise"].value_counts(dropna=True)
     nb_non_classes = int(df["categorieEntreprise"].isna().sum())
-
     return nb, nb_actives, nb_cessees, pct_actives, pct_cessees, top_secteurs, repartition_cat, nb_non_classes
 
 
@@ -374,7 +397,6 @@ def creer_donut(pct_actives, pct_cessees):
 
 @st.cache_data
 def creer_barres_secteurs(codes, valeurs):
-    # Affichage des noms lisibles avec le nombre exact d'entreprises sur chaque barre
     labels = [naf_lisible(c) for c in codes]
     textes = [formater_nombre(int(v)) for v in valeurs]
     fig = go.Figure(go.Bar(
@@ -397,8 +419,6 @@ def creer_barres_secteurs(codes, valeurs):
 
 @st.cache_data
 def creer_barres_tailles(categories, valeurs):
-    # Échelle logarithmique pour rendre toutes les barres visibles
-    # Inclut les entreprises non classées pour que le total soit cohérent avec les 29.5M
     valeurs_log = [math.log10(v + 1) for v in valeurs]
     textes = [formater_nombre(v) for v in valeurs]
     couleurs = ["#1d4ed8", "#3b82f6", "#93c5fd", "#bfdbfe", "#e2e8f0"]
@@ -428,7 +448,6 @@ if performances is None:
     st.stop()
 
 modeles_data = performances["modeles"]
-# Sélection automatique du meilleur modèle selon l'AUC-ROC à chaque démarrage
 modele_recommande = next(
     (k for k, v in modeles_data.items() if v.get("recommande")),
     list(modeles_data.keys())[0]
@@ -487,7 +506,7 @@ if "pret" not in st.session_state:
     st.rerun()
 
 # -------------------------------------------------------
-# DONNÉES GLOBALES — sauvegardées en session pour éviter les recalculs
+# DONNÉES GLOBALES
 # -------------------------------------------------------
 if "stats" not in st.session_state:
     (
@@ -516,8 +535,6 @@ top_secteurs = stats["top_secteurs"]
 repartition_cat = stats["repartition_cat"]
 nb_non_classes = stats["nb_non_classes"]
 
-# Construction des catégories avec les entreprises non classées
-# TPE n'apparaît pas car la source INSEE ne classe pas les TPE dans cette colonne
 ordre_cat = ["TPE", "PME", "ETI", "GE", "Non classées"]
 valeurs_cat = [
     int(repartition_cat.get("TPE", 0)),
@@ -552,7 +569,7 @@ with col_info:
         f"""
         <div style="padding:1.2rem 0 0.8rem 0; border-bottom:0.5px solid #e2e8f0; margin-bottom:1.8rem;
                     text-align:right; font-size:0.68rem; color:#94a3b8; line-height:1.9;">
-            Mémoire de recherche — Mastère Big Data et IA — IPSSI 2026<br>
+            Mémoire de recherche — Mastère 2 Big Data, IA et Dév — École IPSSI 2026<br>
             Source : INSEE SIRENE / data.gouv.fr — {DATE_REFERENCE.strftime('%d/%m/%Y')}
         </div>
         """,
@@ -600,7 +617,7 @@ with g2:
         "<div style='background:white; border:0.5px solid #e2e8f0; border-radius:12px; "
         "padding:1rem 1rem 0 1rem;'>"
         "<div style='font-size:0.6rem; color:#2563eb; text-transform:uppercase; "
-        "letter-spacing:2px; font-weight:600; margin-bottom:4px;'>Secteurs principaux</div>",
+        "letter-spacing:2px; font-weight:600; margin-bottom:4px;'>Top 4 secteurs principaux</div>",
         unsafe_allow_html=True
     )
     st.plotly_chart(
@@ -610,7 +627,7 @@ with g2:
     )
     st.markdown(
         "<div style='font-size:0.68rem; color:#94a3b8; padding:0 0.8rem 0.8rem 0.8rem; line-height:1.6;'>"
-        "Nombre total d'entreprises par secteur — actives et fermées confondues."
+        "Top 4 secteurs sur des centaines — actives et fermées confondues."
         "</div></div>",
         unsafe_allow_html=True
     )
@@ -701,7 +718,6 @@ with col_btn:
 # -------------------------------------------------------
 if analyser and siren_input:
 
-    # Nettoyage de l'entrée utilisateur — suppression des espaces parasites
     siren_input_nettoye = siren_input.strip()
     if not siren_input_nettoye:
         st.warning("Veuillez entrer au moins un numéro SIREN pour lancer l'analyse.")
@@ -1017,6 +1033,6 @@ elif analyser and not siren_input:
 # -------------------------------------------------------
 st.markdown("<br><br>", unsafe_allow_html=True)
 st.caption(
-    f"RiskRadar — Mémoire de recherche — Mastère Big Data et IA — École IPSSI 2026 | "
+    f"RiskRadar — Mémoire de recherche — Mastère 2 Big Data, IA et Dév — École IPSSI 2026 | "
     f"Données INSEE SIRENE / data.gouv.fr — {formater_kpi(nb_entreprises)} entreprises analysées"
 )

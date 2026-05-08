@@ -1,6 +1,6 @@
 # 📡 RiskRadar — Prédiction de défaillance d'entreprises
 
-> Mémoire de recherche — Mastère Big Data et Intelligence Artificielle — École IPSSI Paris 2026
+> Mémoire de recherche — Mastère 2 Big Data, IA et Dév — École IPSSI 2026
 
 ![Python](https://img.shields.io/badge/Python-3.14-3776AB?style=flat-square&logo=python&logoColor=white)
 ![Streamlit](https://img.shields.io/badge/Streamlit-Dashboard-FF4B4B?style=flat-square&logo=streamlit&logoColor=white)
@@ -11,9 +11,17 @@
 
 ---
 
+## 🚀 Application en ligne
+
+[![RiskRadar](https://img.shields.io/badge/🌐_RiskRadar-Accéder_à_l'app-2563eb?style=for-the-badge)](https://riskradar-sirene.streamlit.app)
+
+**Données** : [![Hugging Face](https://img.shields.io/badge/🤗_Hugging_Face-Dataset_SIRENE-FFD21E?style=for-the-badge)](https://huggingface.co/datasets/HassanHH2910/riskradar-sirene)
+
+---
+
 ## 🎯 Présentation du projet
 
-**RiskRadar** est un système complet de prédiction de défaillance d'entreprises françaises, développé dans le cadre de mon mémoire de recherche en Mastère Big Data et IA.
+**RiskRadar** est un système complet de prédiction de défaillance d'entreprises françaises, développé dans le cadre de mon mémoire de recherche en Mastère 2 Big Data, IA et Dév.
 
 J'ai conçu un pipeline de données de bout en bout — de la collecte des données officielles INSEE jusqu'au dashboard interactif — capable d'analyser **29,5 millions d'entreprises françaises** et de prédire leur risque futur de fermeture grâce au Machine Learning.
 
@@ -65,7 +73,7 @@ data.gouv.fr / INSEE SIRENE
         ↓
 ┌───────────────────────────────────────────────────┐
 │  DASHBOARD  │  RiskRadar — Streamlit              │
-│             │  Interface non-technique            │
+│             │  https://riskradar-sirene.streamlit.app │
 └───────────────────────────────────────────────────┘
 ```
 
@@ -83,16 +91,17 @@ data.gouv.fr / INSEE SIRENE
 ![XGBoost](https://img.shields.io/badge/XGBoost-Principal-FF6600?style=flat-square)
 ![RandomForest](https://img.shields.io/badge/Random_Forest-Intermédiaire-228B22?style=flat-square)
 
-### Dashboard
+### Dashboard & Déploiement
 ![Streamlit](https://img.shields.io/badge/Streamlit-Interface-FF4B4B?style=flat-square&logo=streamlit&logoColor=white)
 ![Plotly](https://img.shields.io/badge/Plotly-Graphiques-3F4F75?style=flat-square&logo=plotly&logoColor=white)
+![HuggingFace](https://img.shields.io/badge/Hugging_Face-Données-FFD21E?style=flat-square)
 
 ---
 
 ## 📂 Structure du projet
 
 ```
-riskradar-sirene/
+RiskRadar_SIRENE/
 │
 ├── 01_data_preparation_bronze.py   # Téléchargement INSEE avec reprise automatique
 ├── 02_data_quality_bronze.py       # Validation qualité Bronze
@@ -112,7 +121,7 @@ riskradar-sirene/
 
 ---
 
-## 🚀 Installation et lancement
+## 🚀 Installation et lancement en local
 
 ### 1. Cloner le répertoire
 ```bash
@@ -144,6 +153,8 @@ python 08_data_quality_modele.py
 python -m streamlit run app.py
 ```
 
+> 💡 En production, l'app télécharge automatiquement les données depuis Hugging Face au démarrage.
+
 ---
 
 ## 🔍 Fonctionnalités du dashboard
@@ -171,6 +182,8 @@ Entrez plusieurs SIREN séparés par des virgules pour :
 | **10% stratifié** pour l'entraînement | Contrainte RAM documentée — représentativité garantie par la stratification |
 | **Parquet exclusivement** | CSV banni — performance et compression supérieures |
 | **Sélection automatique du meilleur modèle** | `performances.json` mis à jour à chaque entraînement |
+| **Hugging Face** pour le stockage des données | Fichier Silver 327 MB dépasse la limite GitHub de 100 MB |
+| **Streamlit Cloud** pour le déploiement | Gratuit, lié directement au GitHub, redéploiement automatique |
 
 ---
 
@@ -180,25 +193,27 @@ Les données proviennent de la base officielle **INSEE SIRENE** publiée sur [da
 
 - **29,5 millions** d'entreprises françaises
 - Actives et fermées **depuis 1973**
-- Mise à jour **mensuelle automatique**
+- Mise à jour **mensuelle possible**
 - Licence **Ouverte / Open Licence**
+- Données disponibles sur Hugging Face : [HassanHH2910/riskradar-sirene](https://huggingface.co/datasets/HassanHH2910/riskradar-sirene)
 
 ---
 
 ## 👤 Auteur
 
 **Hassan HOUSSEIN HOUMED**
-Mastère Big Data et Intelligence Artificielle — École IPSSI Paris 2026
+Mastère 2 Big Data, IA et Dév — École IPSSI 2026
 Encadrant : M. Sayf Bejaoui
 
 📧 hassan.houssein.houmed@gmail.com
 🐙 [GitHub](https://github.com/HASSANHOUSSEINHOUMED)
+🌐 [RiskRadar](https://riskradar-sirene.streamlit.app)
 
 ---
 
 <div align="center">
 
-**Mémoire de recherche — École IPSSI Paris — 2026**
+**Mémoire de recherche — École IPSSI 2026**
 *Données officielles INSEE SIRENE / data.gouv.fr*
 
 </div>

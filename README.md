@@ -21,16 +21,16 @@
 
 ## 🎯 Présentation du projet
 
-**RiskRadar** est un système complet de prédiction de défaillance d'entreprises françaises, développé dans le cadre de mon mémoire de recherche en Mastère 2 Big Data, IA et Dév.
+**RiskRadar** est un système complet de prédiction du risque de cessation d'activité des entreprises françaises, développé dans le cadre d'un mémoire de recherche en Mastère 2 Big Data, IA et Dév.
 
-J'ai conçu un pipeline de données de bout en bout — de la collecte des données officielles INSEE jusqu'au dashboard interactif — capable d'analyser **29,5 millions d'entreprises françaises** et de prédire leur risque futur de fermeture grâce au Machine Learning.
+Ce projet conçoit un pipeline de données de bout en bout — de la collecte des données officielles INSEE jusqu'au dashboard interactif — capable d'analyser **29,5 millions d'entreprises françaises** et de prédire leur risque futur de cessation d'activité grâce au Machine Learning.
 
 ### 💡 Ce que fait RiskRadar
 
 - **Analyse n'importe quelle entreprise française** à partir de son numéro SIREN
-- **Prédit le risque futur de fermeture** avec 95% de précision
+- **Prédit le risque futur de cessation d'activité** avec 94% de précision
 - **Compare simultanément plusieurs entreprises** en quelques secondes
-- **Se met à jour automatiquement** chaque mois avec les nouvelles données INSEE
+- **Reproductible mensuellement** avec les nouvelles données INSEE publiées sur data.gouv.fr
 
 ---
 
@@ -38,11 +38,13 @@ J'ai conçu un pipeline de données de bout en bout — de la collecte des donn�
 
 | Modèle | Accuracy | AUC-ROC | Statut |
 |--------|----------|---------|--------|
-| Logistic Regression | 78% | 84% | Baseline |
+| Logistic Regression | 78% | 83% | Baseline |
 | Random Forest | 93% | 98% | Intermédiaire |
-| **XGBoost** | **95%** | **99%** | ✅ **Recommandé** |
+| **XGBoost** | **94%** | **99%** | ✅ **Recommandé** |
 
-> Entraînement sur **2,93 millions d'entreprises** (10% stratifié des 29,5M) — contrainte RAM documentée et défendable.
+> Entraînement sur **2,95 millions d'entreprises** (10% stratifié des 29,5M) — contrainte RAM 8 Go documentée et gérée par stratification.
+
+> Validation indépendante sur 1% stratifié Gold : écart AUC-ROC de 0.0002 — modèle stable et généralisable.
 
 ---
 
@@ -53,17 +55,17 @@ data.gouv.fr / INSEE SIRENE
         ↓
 ┌───────────────────────────────────────────────────┐
 │  BRONZE  │  Téléchargement mensuel automatique    │
-│          │  29,5M entreprises — 655 MB Parquet    │
+│          │  29,5M entreprises — 659 MB Parquet    │
 └───────────────────────────────────────────────────┘
         ↓
 ┌───────────────────────────────────────────────────┐
 │  SILVER  │  10 colonnes utiles extraites          │
-│          │  29,5M lignes — 327 MB Parquet         │
+│          │  29,5M lignes — 328 MB Parquet         │
 └───────────────────────────────────────────────────┘
         ↓
 ┌───────────────────────────────────────────────────┐
 │  GOLD    │  Encodage + Normalisation + Cible      │
-│          │  29,5M lignes — 184 MB Parquet         │
+│          │  29,5M lignes — 185 MB Parquet         │
 └───────────────────────────────────────────────────┘
         ↓
 ┌───────────────────────────────────────────────────┐
@@ -113,9 +115,11 @@ RiskRadar_SIRENE/
 ├── 08_data_quality_modele.py       # Validation et comparaison des modèles
 │
 ├── app.py                          # Dashboard RiskRadar (Streamlit)
+├── upload_hf.py                    # Mise à jour Hugging Face
 │
 ├── requirements.txt                # Dépendances Python
-├── .gitignore                      # Données et modèles exclus
+├── .env.example                    # Exemple de variables d'environnement
+├── .gitignore                      # Données et fichiers sensibles exclus
 └── README.md                       # Documentation
 ```
 
@@ -136,7 +140,13 @@ prediction_defaillance_env\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 3. Lancer le pipeline complet
+### 3. Configurer les variables d'environnement
+Créez un fichier `.env` à la racine :
+```
+HF_REPO_ID=votre_username/votre_dataset
+```
+
+### 4. Lancer le pipeline complet
 ```bash
 python 01_data_preparation_bronze.py
 python 02_data_quality_bronze.py
@@ -148,7 +158,7 @@ python 07_ml_models.py
 python 08_data_quality_modele.py
 ```
 
-### 4. Lancer le dashboard
+### 5. Lancer le dashboard
 ```bash
 python -m streamlit run app.py
 ```
@@ -157,19 +167,44 @@ python -m streamlit run app.py
 
 ---
 
-## 🔍 Fonctionnalités du dashboard
+## 🔄 Reproduire et mettre à jour le projet
 
-### Analyse d'une entreprise
-Entrez un numéro SIREN à 9 chiffres pour obtenir :
-- ✅ Verdict clair (Stable / À surveiller / Risque élevé)
-- 📊 Score de risque sur 100
-- 🏢 Fiche complète (ancienneté, secteur, taille, évolutions)
-- 📈 Position parmi toutes les entreprises françaises
+Ce projet est entièrement reproductible à partir des données publiques INSEE SIRENE, accessibles gratuitement sur data.gouv.fr.
 
-### Analyse multi-entreprises
-Entrez plusieurs SIREN séparés par des virgules pour :
-- 🟢 Résumé coloré par catégorie de risque
-- 📋 Vue compacte comparative
+### Prérequis système
+- Python 3.10+
+- **8 Go de RAM minimum** — requis pour traiter 29,5M lignes
+- 2 Go d'espace disque disponible
+
+### Mettre à jour les données mensuellement
+Les données SIRENE sont publiées chaque mois sur data.gouv.fr. Pour mettre à jour le pipeline :
+
+```bash
+# Étape 1 — Relancer le pipeline complet
+python 01_data_preparation_bronze.py
+python 02_data_quality_bronze.py
+python 03_data_preparation_silver.py
+python 04_data_quality_silver.py
+python 05_data_preparation_gold.py
+python 06_data_quality_gold.py
+python 07_ml_models.py
+python 08_data_quality_modele.py
+
+# Étape 2 — Uploader sur votre Hugging Face
+python upload_hf.py
+
+# Étape 3 — Pusher sur GitHub
+git add .
+git commit -m "Mise à jour données [mois] [année]"
+git push
+```
+
+### Adapter le projet à votre compte
+1. Forkez ce répertoire
+2. Créez un dataset sur [Hugging Face](https://huggingface.co)
+3. Mettez à jour `HF_REPO_ID` dans votre `.env`
+4. Connectez votre GitHub à [Streamlit Cloud](https://streamlit.io/cloud)
+5. Déployez `app.py`
 
 ---
 
@@ -182,7 +217,8 @@ Entrez plusieurs SIREN séparés par des virgules pour :
 | **10% stratifié** pour l'entraînement | Contrainte RAM documentée — représentativité garantie par la stratification |
 | **Parquet exclusivement** | CSV banni — performance et compression supérieures |
 | **Sélection automatique du meilleur modèle** | `performances.json` mis à jour à chaque entraînement |
-| **Hugging Face** pour le stockage des données | Fichier Silver 327 MB dépasse la limite GitHub de 100 MB |
+| **SIREN et non SIRET** | La cessation d'activité est une notion juridique au niveau de l'unité légale |
+| **Hugging Face** pour le stockage des données | Fichier Silver 328 MB dépasse la limite GitHub de 100 MB |
 | **Streamlit Cloud** pour le déploiement | Gratuit, lié directement au GitHub, redéploiement automatique |
 
 ---
@@ -193,9 +229,10 @@ Les données proviennent de la base officielle **INSEE SIRENE** publiée sur [da
 
 - **29,5 millions** d'entreprises françaises
 - Actives et fermées **depuis 1973**
-- Mise à jour **mensuelle possible**
+- Mise à jour **mensuelle**
 - Licence **Ouverte / Open Licence**
-- Données disponibles sur Hugging Face : [HassanHH2910/riskradar-sirene](https://huggingface.co/datasets/HassanHH2910/riskradar-sirene)
+- Téléchargement direct : [StockUniteLegale_utf8.parquet](https://object.files.data.gouv.fr/data-pipeline-open/siren/stock/StockUniteLegale_utf8.parquet)
+- Données Silver + modèles sur Hugging Face : [HassanHH2910/riskradar-sirene](https://huggingface.co/datasets/HassanHH2910/riskradar-sirene)
 
 ---
 

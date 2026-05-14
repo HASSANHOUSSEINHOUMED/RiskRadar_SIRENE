@@ -1,5 +1,5 @@
 """
-Script d'entrainement des modeles ML - PREDICTION DE DEFAILLANCE
+Script d'entrainement des modeles ML - prédiction du risque de cessation d'activité des entreprises françaises
 Objectif : entrainer et evaluer trois modeles de classification
 Source : data/gold/sirene_entreprises_gold_latest.parquet
 Modeles : Logistic Regression (baseline), Random Forest, XGBoost (principal)

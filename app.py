@@ -1,5 +1,5 @@
 """
-RiskRadar - Dashboard de prédiction de défaillance d'entreprises
+RiskRadar - Dashboard de prédiction du risque de cessation d'activité des entreprises françaises
 Application Streamlit destinée aux utilisateurs non-techniques
 Source des données : INSEE SIRENE / data.gouv.fr
 """

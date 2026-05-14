@@ -1,4 +1,4 @@
-# 📡 RiskRadar — Prédiction de défaillance d'entreprises
+# 📡 RiskRadar — Prédiction du risque de cessation d'activité des entreprises françaises
 
 > Mémoire de recherche — Mastère 2 Big Data, IA et Dév — École IPSSI 2026
 

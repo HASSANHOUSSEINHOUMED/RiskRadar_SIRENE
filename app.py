@@ -558,7 +558,7 @@ with col_logo:
                 📡 Risk<span style="color:#2563eb;">Radar</span>
             </div>
             <div style="font-size:0.62rem; color:#94a3b8; letter-spacing:1.5px; text-transform:uppercase;">
-                Prédiction de risque futur d'entreprise — France
+                Prédiction du risque de cessation d'activité — France
             </div>
         </div>
         """,

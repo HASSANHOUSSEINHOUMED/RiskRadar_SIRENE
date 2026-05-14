@@ -998,10 +998,12 @@ if analyser and siren_input:
                             <strong>Ce que cette prédiction signifie concrètement :</strong>
                             J'ai comparé cette entreprise avec des millions d'entreprises qui ont
                             survécu ou fermé grâce à mon modèle d'intelligence artificielle.
-                            Son ancienneté de <strong>{anciennete_label}</strong> et sa taille
-                            lui confèrent un profil qui ressemble à <strong>{label_court.lower()}</strong>.
+                            Son profil global — ancienneté, secteur d'activité, taille, nombre
+                            d'évolutions enregistrées et autres caractéristiques administratives —
+                            correspond à celui des entreprises classées
+                            <strong>{label_court.lower()}</strong> dans mes données historiques.
                         </div>
-                    </div>
+                    </div>                    
                     """,
                     unsafe_allow_html=True
                 )

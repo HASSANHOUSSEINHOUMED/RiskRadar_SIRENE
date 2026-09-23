@@ -329,20 +329,30 @@ def charger_statistiques_globales():
 
 
 @st.cache_data
-def charger_echantillon_actives(n_sample=10000):
-    """Charge un echantillon d'entreprises actives pour les predictions batch"""
+def charger_echantillon_actives(n_sample=5000):
+    """Charge un echantillon d'entreprises actives en lisant le fichier par petits morceaux"""
     colonnes = [
         "siren", "etatAdministratifUniteLegale", "activitePrincipaleUniteLegale",
         "trancheEffectifsUniteLegale", "categorieEntreprise",
         "economieSocialeSolidaireUniteLegale", "nombrePeriodesUniteLegale",
         "dateCreationUniteLegale", "dateDebut"
     ]
-    table = pq.read_table(CHEMIN_SILVER, columns=colonnes)
-    masque = pc.equal(table["etatAdministratifUniteLegale"], "A")
-    actives = table.filter(masque).to_pandas()
-    if len(actives) > n_sample:
-        actives = actives.sample(n=n_sample, random_state=42)
-    return actives.reset_index(drop=True)
+    pf = pq.ParquetFile(CHEMIN_SILVER)
+    chunks = []
+    total_actives = 0
+    for batch in pf.iter_batches(batch_size=50000, columns=colonnes):
+        df_chunk = batch.to_pandas()
+        actives_chunk = df_chunk[df_chunk["etatAdministratifUniteLegale"] == "A"]
+        chunks.append(actives_chunk)
+        total_actives += len(actives_chunk)
+        if total_actives >= n_sample * 2:
+            break
+    if not chunks:
+        return pd.DataFrame()
+    df = pd.concat(chunks, ignore_index=True)
+    if len(df) > n_sample:
+        df = df.sample(n=n_sample, random_state=42)
+    return df.reset_index(drop=True)
 
 
 @st.cache_resource
@@ -519,51 +529,46 @@ date_lisible = formater_date(date_entrainement)
 # Charger le modele
 modele = charger_modele(modeles_data[modele_choisi]["fichier"])
 
-if "echantillon_pret" not in st.session_state:
+def lancer_analyse_echantillon():
+    """Lance la prediction sur echantillon — appelee uniquement sur demande"""
     try:
-        df_actives = charger_echantillon_actives(n_sample=10000)
+        df_actives = charger_echantillon_actives(n_sample=5000)
+        if df_actives.empty or modele is None:
+            return tuple(), pd.DataFrame()
         X_batch = preparer_features_batch(df_actives)
-        if modele is not None:
-            probas = modele.predict_proba(X_batch)[:, 1]
-            scores = (probas * 100).round(1)
-            df_actives = df_actives.copy()
-            df_actives["score"] = scores
-            df_actives["siren_str"] = df_actives["siren"].astype(str).str.zfill(9)
-            df_actives["naf_label"] = df_actives["activitePrincipaleUniteLegale"].apply(
-                lambda x: naf_lisible(str(x))
-            )
-            df_actives["taille_label"] = (
-                df_actives["trancheEffectifsUniteLegale"]
-                .astype(str).map(LABEL_TRANCHES).fillna("Non renseigné")
-            )
-            def calc_anc(row):
-                try:
-                    d = pd.to_datetime(row["dateCreationUniteLegale"], errors="coerce")
-                    if pd.isna(d):
-                        return "N/R"
-                    v = int((DATE_REFERENCE - d).days / 365.25)
-                    return f"{v} an{'s' if v > 1 else ''}"
-                except Exception:
+        probas = modele.predict_proba(X_batch)[:, 1]
+        scores = (probas * 100).round(1)
+        df_actives = df_actives.copy()
+        df_actives["score"] = scores
+        df_actives["siren_str"] = df_actives["siren"].astype(str).str.zfill(9)
+        df_actives["naf_label"] = df_actives["activitePrincipaleUniteLegale"].apply(
+            lambda x: naf_lisible(str(x))
+        )
+        df_actives["taille_label"] = (
+            df_actives["trancheEffectifsUniteLegale"]
+            .astype(str).map(LABEL_TRANCHES).fillna("Non renseigné")
+        )
+        def calc_anc(row):
+            try:
+                d = pd.to_datetime(row["dateCreationUniteLegale"], errors="coerce")
+                if pd.isna(d):
                     return "N/R"
-            df_actives["anciennete_label"] = df_actives.apply(calc_anc, axis=1)
-            df_at_risk = df_actives[df_actives["score"] >= 35].copy()
-            df_at_risk = df_at_risk.sort_values("score", ascending=False).reset_index(drop=True)
-            st.session_state.scores_tuple = tuple(scores.tolist())
-            st.session_state.df_at_risk = df_at_risk
-        else:
-            st.session_state.scores_tuple = tuple()
-            st.session_state.df_at_risk = pd.DataFrame()
+                v = int((DATE_REFERENCE - d).days / 365.25)
+                return f"{v} an{'s' if v > 1 else ''}"
+            except Exception:
+                return "N/R"
+        df_actives["anciennete_label"] = df_actives.apply(calc_anc, axis=1)
+        df_at_risk = df_actives[df_actives["score"] >= 35].copy()
+        df_at_risk = df_at_risk.sort_values("score", ascending=False).reset_index(drop=True)
+        return tuple(scores.tolist()), df_at_risk
     except Exception:
-        st.session_state.scores_tuple = tuple()
-        st.session_state.df_at_risk = pd.DataFrame()
-    st.session_state.echantillon_pret = True
+        return tuple(), pd.DataFrame()
 
 scores_tuple = st.session_state.get("scores_tuple", ())
 df_at_risk = st.session_state.get("df_at_risk", pd.DataFrame())
 
 # Calculs pour KPIs
-if scores_tuple:
-    import numpy as np
+if scores_tuple and len(scores_tuple) > 0:
     arr = np.array(scores_tuple)
     pct_risque_eleve = round(float((arr >= 65).sum()) / len(arr) * 100, 1)
 else:
@@ -628,13 +633,19 @@ with g1:
         Distribution du risque — actives
     </div>
     <div style='font-size:0.68rem; color:#94a3b8; margin-bottom:4px;'>
-        Prédiction sur un échantillon de 10 000 entreprises actives
+        Prédiction sur un échantillon de 5 000 entreprises actives
     </div>
     """, unsafe_allow_html=True)
 
-    if scores_tuple:
+    if scores_tuple and len(scores_tuple) > 0:
         fig_dist, pct_s, pct_m, pct_r = creer_graphique_distribution(scores_tuple)
         st.plotly_chart(fig_dist, use_container_width=True, config={"displayModeBar": False})
+    else:
+        st.markdown("""
+        <div style='text-align:center; padding:1rem; color:#94a3b8; font-size:0.8rem;'>
+            Cliquez sur "Analyser l'échantillon" ci-dessous pour charger les données.
+        </div>
+        """, unsafe_allow_html=True)
 
     st.markdown("""
     <div style='font-size:0.68rem; color:#94a3b8; padding:0 0.8rem 0.8rem 0.8rem; line-height:1.6;'>
@@ -735,6 +746,20 @@ st.markdown("""
     C'est la valeur centrale de RiskRadar : détecter les signaux avant la fermeture.
 </div>
 """, unsafe_allow_html=True)
+
+# Bouton pour déclencher l'analyse
+if not st.session_state.get("echantillon_pret", False):
+    col_btn_analyse, _ = st.columns([2, 3])
+    with col_btn_analyse:
+        if st.button("🔍 Analyser l'échantillon d'entreprises actives"):
+            with st.spinner("Analyse de 5 000 entreprises actives en cours..."):
+                scores_t, df_risk = lancer_analyse_echantillon()
+                st.session_state.scores_tuple = scores_t
+                st.session_state.df_at_risk = df_risk
+                st.session_state.echantillon_pret = True
+                scores_tuple = scores_t
+                df_at_risk = df_risk
+                st.rerun()
 
 # Barre de recherche commune aux deux tableaux
 col_search_in, col_search_btn = st.columns([4, 1])
@@ -880,7 +905,7 @@ if not df_at_risk.empty:
 
     st.markdown("""
     <div style="font-size:0.62rem; color:#94a3b8; margin-top:8px; font-style:italic; line-height:1.6;">
-        Échantillon de 10 000 entreprises actives analysées par XGBoost.
+        Échantillon de 5 000 entreprises actives analysées par XGBoost.
         Ces entreprises sont officiellement actives dans le registre SIRENE aujourd'hui.
     </div>
     """, unsafe_allow_html=True)

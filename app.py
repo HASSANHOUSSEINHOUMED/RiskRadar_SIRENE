@@ -520,13 +520,13 @@ date_lisible = formater_date(date_entrainement)
 modele = charger_modele(modeles_data[modele_choisi]["fichier"])
 
 @st.cache_data
-def calculer_predictions_actives(n_sample=10000):
+def calculer_predictions_actives(_modele, n_sample=10000):
     """Calcule les predictions sur un echantillon d'actives — resultat mis en cache"""
-    df_actives = charger_echantillon_actives(n_sample=n_sample)
-    if modele is None:
+    if _modele is None:
         return tuple(), pd.DataFrame()
+    df_actives = charger_echantillon_actives(n_sample=n_sample)
     X_batch = preparer_features_batch(df_actives)
-    probas = modele.predict_proba(X_batch)[:, 1]
+    probas = _modele.predict_proba(X_batch)[:, 1]
     scores = (probas * 100).round(1)
     df_actives = df_actives.copy()
     df_actives["score"] = scores
@@ -552,7 +552,7 @@ def calculer_predictions_actives(n_sample=10000):
     return tuple(scores.tolist()), df_at_risk
 
 
-scores_tuple, df_at_risk = calculer_predictions_actives()
+scores_tuple, df_at_risk = calculer_predictions_actives(modele)
 
 # Calculs pour KPIs
 if scores_tuple:

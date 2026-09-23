@@ -15,6 +15,7 @@ import time
 import random
 from datetime import datetime
 from huggingface_hub import hf_hub_download
+import numpy as np
 
 # -------------------------------------------------------
 # CONFIGURATION
@@ -328,7 +329,7 @@ def charger_statistiques_globales():
 
 
 @st.cache_data
-def charger_echantillon_actives(n_sample=30000):
+def charger_echantillon_actives(n_sample=10000):
     """Charge un echantillon d'entreprises actives pour les predictions batch"""
     colonnes = [
         "siren", "etatAdministratifUniteLegale", "activitePrincipaleUniteLegale",
@@ -372,7 +373,6 @@ def creer_graphique_distribution(scores_tuple):
     n_total = len(scores)
     if n_total == 0:
         return None, 0, 0, 0
-    import numpy as np
     arr = np.array(scores)
     pct_s = round(float((arr < 35).sum()) / n_total * 100, 1)
     pct_m = round(float(((arr >= 35) & (arr < 65)).sum()) / n_total * 100, 1)
@@ -519,45 +519,40 @@ date_lisible = formater_date(date_entrainement)
 # Charger le modele
 modele = charger_modele(modeles_data[modele_choisi]["fichier"])
 
-# Calcul des predictions sur echantillon d'actives (une seule fois par session)
-if "echantillon_pret" not in st.session_state and modele is not None:
-    with st.spinner("Analyse des entreprises actives en cours..."):
-        df_actives = charger_echantillon_actives(n_sample=30000)
-        X_batch = preparer_features_batch(df_actives)
-        probas = modele.predict_proba(X_batch)[:, 1]
-        scores = (probas * 100).round(1)
-
-        df_actives["score"] = scores
-        df_actives["siren_str"] = df_actives["siren"].astype(str).str.zfill(9)
-        df_actives["naf_label"] = df_actives["activitePrincipaleUniteLegale"].apply(
-            lambda x: naf_lisible(str(x))
-        )
-        df_actives["taille_label"] = df_actives["trancheEffectifsUniteLegale"].astype(str).map(
-            LABEL_TRANCHES
-        ).fillna("Non renseigné")
-
-        def calc_anc(row):
-            try:
-                d = pd.to_datetime(row["dateCreationUniteLegale"], errors="coerce")
-                if pd.isna(d):
-                    return "N/R"
-                v = int((DATE_REFERENCE - d).days / 365.25)
-                return f"{v} an{'s' if v > 1 else ''}"
-            except Exception:
+@st.cache_data
+def calculer_predictions_actives(n_sample=10000):
+    """Calcule les predictions sur un echantillon d'actives — resultat mis en cache"""
+    df_actives = charger_echantillon_actives(n_sample=n_sample)
+    if modele is None:
+        return tuple(), pd.DataFrame()
+    X_batch = preparer_features_batch(df_actives)
+    probas = modele.predict_proba(X_batch)[:, 1]
+    scores = (probas * 100).round(1)
+    df_actives = df_actives.copy()
+    df_actives["score"] = scores
+    df_actives["siren_str"] = df_actives["siren"].astype(str).str.zfill(9)
+    df_actives["naf_label"] = df_actives["activitePrincipaleUniteLegale"].apply(
+        lambda x: naf_lisible(str(x))
+    )
+    df_actives["taille_label"] = (
+        df_actives["trancheEffectifsUniteLegale"].astype(str).map(LABEL_TRANCHES).fillna("Non renseigné")
+    )
+    def calc_anc(row):
+        try:
+            d = pd.to_datetime(row["dateCreationUniteLegale"], errors="coerce")
+            if pd.isna(d):
                 return "N/R"
+            v = int((DATE_REFERENCE - d).days / 365.25)
+            return f"{v} an{'s' if v > 1 else ''}"
+        except Exception:
+            return "N/R"
+    df_actives["anciennete_label"] = df_actives.apply(calc_anc, axis=1)
+    df_at_risk = df_actives[df_actives["score"] >= 35].copy()
+    df_at_risk = df_at_risk.sort_values("score", ascending=False).reset_index(drop=True)
+    return tuple(scores.tolist()), df_at_risk
 
-        df_actives["anciennete_label"] = df_actives.apply(calc_anc, axis=1)
 
-        # Entreprises a risque (>= 35%)
-        df_at_risk = df_actives[df_actives["score"] >= 35].copy()
-        df_at_risk = df_at_risk.sort_values("score", ascending=False).reset_index(drop=True)
-
-        st.session_state.scores_tuple = tuple(scores.tolist())
-        st.session_state.df_at_risk = df_at_risk
-        st.session_state.echantillon_pret = True
-
-scores_tuple = st.session_state.get("scores_tuple", ())
-df_at_risk = st.session_state.get("df_at_risk", pd.DataFrame())
+scores_tuple, df_at_risk = calculer_predictions_actives()
 
 # Calculs pour KPIs
 if scores_tuple:
@@ -626,7 +621,7 @@ with g1:
         Distribution du risque — actives
     </div>
     <div style='font-size:0.68rem; color:#94a3b8; margin-bottom:4px;'>
-        Prédiction sur un échantillon de 30 000 entreprises actives
+        Prédiction sur un échantillon de 10 000 entreprises actives
     </div>
     """, unsafe_allow_html=True)
 
@@ -878,7 +873,7 @@ if not df_at_risk.empty:
 
     st.markdown("""
     <div style="font-size:0.62rem; color:#94a3b8; margin-top:8px; font-style:italic; line-height:1.6;">
-        Échantillon de 30 000 entreprises actives analysées par XGBoost.
+        Échantillon de 10 000 entreprises actives analysées par XGBoost.
         Ces entreprises sont officiellement actives dans le registre SIRENE aujourd'hui.
     </div>
     """, unsafe_allow_html=True)

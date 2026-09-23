@@ -840,7 +840,7 @@ if not df_at_risk.empty:
         df_orange_display = df_orange[df_orange["siren_str"].str.contains(siren_recherche, na=False)]
         if df_rouge_display.empty and df_orange_display.empty:
             st.warning(
-                f"SIREN {siren_recherche} non trouvé dans l'échantillon de 30 000 actives analysées. "
+                f"SIREN {siren_recherche} non trouvé dans l'échantillon de 5 000 actives analysées. "
                 f"Ce SIREN peut exister dans SIRENE — utilisez la section 'Analyser un SIREN' ci-dessous pour l'analyser directement."
             )
     else:
